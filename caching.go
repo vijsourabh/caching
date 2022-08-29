@@ -35,7 +35,7 @@ func NewCache(expiry time.Duration, cleanInterval time.Duration) *Cache {
 }
 
 // NewObfuscatedCache creates an obfuscated cache Instance and triggers a goroutine to Clean the cache
-// The cache will obfuscate the input before adding it in the map
+// It will obfuscate the input before adding it in the map
 func NewObfuscatedCache(expiry time.Duration, cleanInterval time.Duration) *Cache {
 	cache := &Cache{
 		cacheMap:      sync.Map{},
