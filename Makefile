@@ -1,6 +1,6 @@
 GOLANGCI_LINT_VERSION ?=
 
-prep: tools vendor fmt lint vet test
+prep: vendor tools fmt lint vet test
 
 builddir: clean
 	mkdir -p -m 0777 build
@@ -35,7 +35,7 @@ vendor:
 	go mod vendor
 
 tools:
-	go install golang.org/x/tools/cmd/cover
+	go install golang.org/x/tools/cmd/cover@latest
 	sh -c "$$(wget -O - -q https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh || echo exit 2)" -- -b $(shell go env GOPATH)/bin $(GOLANGCI_LINT_VERSION)
 
 .PHONY: vendor

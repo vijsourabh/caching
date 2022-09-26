@@ -260,7 +260,6 @@ func TestService_CacheWithExpiry(test *testing.T) {
 		require.False(test, found)
 		require.Nil(test, value)
 	})
-
 }
 
 func TestService_Cache(test *testing.T) {
