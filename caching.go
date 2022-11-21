@@ -17,64 +17,46 @@ type (
 	cacheEntry struct {
 		value         interface{}
 		insertionTime time.Time
+		expiry        time.Duration
+	}
+
+	CreateCacheParams struct {
+		Expiry            time.Duration
+		CleanInterval     time.Duration
+		IsCacheObfuscated bool
+	}
+
+	AddCacheParams struct {
+		Key    interface{}
+		Value  interface{}
+		Expiry time.Duration
+	}
+
+	GetCacheResponse struct {
+		Value         []byte
+		InsertionTime time.Time
 	}
 )
 
+const (
+	defaultExpiry = -1
+)
+
 // NewCache creates a cache Instance and triggers a goroutine to Clean the cache on the basis of provided cleanInterval
-// the routine will only clean the cache if the expiry time of the cache is updated
-// to update the expiry call UpdateExpiry
-func NewCache(cleanInterval time.Duration) *Cache {
+func NewCache(params *CreateCacheParams) *Cache {
 	cache := &Cache{
 		cacheMap:      sync.Map{},
-		cleanInterval: cleanInterval,
+		cleanInterval: params.CleanInterval,
+		expiry:        defaultExpiry,
 	}
 
-	// call goroutine to clean cache
-	go cache.clean()
-
-	return cache
-}
-
-// NewCacheWithExpiry creates a cache Instance with expiry and triggers a goroutine to Clean the cache on the basis of provided cleanInterval
-// passing the negative expiry refers to never expiry
-func NewCacheWithExpiry(expiry time.Duration, cleanInterval time.Duration) *Cache {
-	cache := &Cache{
-		cacheMap:      sync.Map{},
-		expiry:        expiry,
-		cleanInterval: cleanInterval,
+	// override the expiry provided by the user
+	if params.Expiry > 0 {
+		cache.expiry = params.Expiry
 	}
 
-	// call goroutine to clean cache
-	go cache.clean()
-
-	return cache
-}
-
-// NewObfuscatedCache creates an obfuscated cache Instance and triggers a goroutine to Clean the cache
-// It will obfuscate the input before adding it in the map
-// the routine will only clean the cache if the expiry time of the cache is updated
-func NewObfuscatedCache(cleanInterval time.Duration) *Cache {
-	cache := &Cache{
-		cacheMap:      sync.Map{},
-		cleanInterval: cleanInterval,
-		obfuscator:    NewObfuscator(),
-	}
-
-	// call goroutine to clean cache
-	go cache.clean()
-
-	return cache
-}
-
-// NewObfuscatedCacheWithExpiry creates an obfuscated cache Instance with expiry and triggers a goroutine to Clean the cache
-// passing the negative expiry refers to never expiry
-// It will obfuscate the input before adding it in the map
-func NewObfuscatedCacheWithExpiry(expiry time.Duration, cleanInterval time.Duration) *Cache {
-	cache := &Cache{
-		cacheMap:      sync.Map{},
-		expiry:        expiry,
-		cleanInterval: cleanInterval,
-		obfuscator:    NewObfuscator(),
+	if params.IsCacheObfuscated {
+		cache.obfuscator = NewObfuscator()
 	}
 
 	// call goroutine to clean cache
@@ -88,10 +70,10 @@ func (cache *Cache) UpdateExpiry(expiry time.Duration) {
 	cache.expiry = expiry
 }
 
-// Add a value to the cache.
+// Add a value to the cache and the expiry time of the entry will be overridden.
 // The value must be a pointer to a json struct
-func (cache *Cache) Add(key interface{}, value interface{}) error {
-	insertValue, err := json.Marshal(&value)
+func (cache *Cache) Add(params *AddCacheParams) error {
+	insertValue, err := json.Marshal(&params.Value)
 	if err != nil {
 		return err
 	}
@@ -102,28 +84,36 @@ func (cache *Cache) Add(key interface{}, value interface{}) error {
 		}
 	}
 
-	cache.cacheMap.Store(key, &cacheEntry{
+	entry := &cacheEntry{
 		value:         insertValue,
+		expiry:        cache.expiry,
 		insertionTime: time.Now(),
-	})
+	}
+
+	// override the expiry for the key provided by the user
+	if params.Expiry > 0 {
+		entry.expiry = params.Expiry
+	}
+
+	cache.cacheMap.Store(params.Key, entry)
 
 	return nil
 }
 
 // Get looks up a key's value from the cache.
-func (cache *Cache) Get(key interface{}) ([]byte, time.Time, bool) {
+func (cache *Cache) Get(key interface{}) (*GetCacheResponse, bool) {
 	value, found := cache.cacheMap.Load(key)
 	if !found {
-		return nil, time.Time{}, false
+		return nil, false
 	}
 
 	entry, ok := value.(*cacheEntry)
 	if !ok {
 		cache.Remove(key)
-		return nil, time.Time{}, false
+		return nil, false
 	}
 
-	if cache.expiry <= 0 || time.Since(entry.insertionTime) <= cache.expiry {
+	if entry.expiry <= defaultExpiry || time.Since(entry.insertionTime) <= entry.expiry {
 		insertedValue := entry.value.([]byte)
 		var err error
 
@@ -132,17 +122,20 @@ func (cache *Cache) Get(key interface{}) ([]byte, time.Time, bool) {
 			insertedValue, err = cache.obfuscator.Deobfuscate(insertedValue)
 			if err != nil {
 				cache.Remove(key)
-				return nil, time.Time{}, false
+				return nil, false
 			}
 		}
 
-		return insertedValue, entry.insertionTime, true
+		return &GetCacheResponse{
+			Value:         insertedValue,
+			InsertionTime: entry.insertionTime,
+		}, true
 	}
 
 	// since the entry in the cache is expired, so removing it from cache
 	cache.Remove(key)
 
-	return nil, time.Time{}, false
+	return nil, false
 }
 
 // Remove the provided key from the cache.
@@ -156,17 +149,15 @@ func (cache *Cache) clean() {
 	for {
 		time.Sleep(cache.cleanInterval)
 
-		if cache.expiry > 0 {
-			cache.cacheMap.Range(func(key, value interface{}) bool {
-				entry, ok := value.(*cacheEntry)
+		cache.cacheMap.Range(func(key, value interface{}) bool {
+			entry, ok := value.(*cacheEntry)
 
-				if ok && time.Since(entry.insertionTime) > cache.expiry {
-					cache.Remove(key)
-					return true
-				}
+			if ok && entry.expiry != defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
+				cache.Remove(key)
+				return true
+			}
 
-				return false
-			})
-		}
+			return false
+		})
 	}
 }

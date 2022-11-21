@@ -1,6 +1,6 @@
 GOLANGCI_LINT_VERSION ?=
 
-prep: vendor tools fmt lint vet test
+prep: vendor tools fmt lint vet test cover
 
 builddir: clean
 	mkdir -p -m 0777 build
