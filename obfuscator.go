@@ -43,7 +43,7 @@ func (obfuscator *Obfuscator) Obfuscate(plaintext []byte) ([]byte, error) {
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
+	if _, err = rand.Read(nonce); err != nil {
 		return nil, err
 	}
 

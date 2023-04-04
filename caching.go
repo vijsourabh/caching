@@ -2,6 +2,7 @@ package caching
 
 import (
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 )
@@ -30,6 +31,16 @@ type (
 		Key    interface{}
 		Value  interface{}
 		Expiry time.Duration
+	}
+
+	UpdateCacheParams struct {
+		Key   interface{}
+		Value interface{}
+	}
+
+	UpdateCacheTimeParams struct {
+		Expiry        time.Duration
+		CleanInterval time.Duration
 	}
 
 	GetCacheResponse struct {
@@ -65,15 +76,34 @@ func NewCache(params *CreateCacheParams) *Cache {
 	return cache
 }
 
-// UpdateExpiry updates the expiry time of the cache.
-func (cache *Cache) UpdateExpiry(expiry time.Duration) {
-	cache.expiry = expiry
+// UpdateTime updates the expiry time of the cache.
+func (cache *Cache) UpdateTime(params *UpdateCacheTimeParams) {
+	cache.expiry = params.Expiry
+	cache.cleanInterval = params.CleanInterval
 }
 
-// Add a value to the cache and the expiry time of the entry will be overridden.
-// The value must be a pointer to a json struct
-func (cache *Cache) Add(params *AddCacheParams) error {
-	insertValue, err := json.Marshal(&params.Value)
+// Update updates the value for the cache
+func (cache *Cache) Update(params *UpdateCacheParams) error {
+	value, found := cache.cacheMap.Load(params.Key)
+	if !found {
+		return errors.New("value doesn't exist in cache")
+	}
+
+	entry, ok := value.(*cacheEntry)
+	if !ok {
+		cache.Remove(params.Key)
+		return errors.New("invalid value found in cache")
+	}
+
+	entry.value = params.Value
+
+	return cache.addInCache(params.Key, entry)
+}
+
+// addInCache adds the value in the cache for the provided key
+// It also obfuscates the value if cache is obfuscated
+func (cache *Cache) addInCache(key interface{}, value *cacheEntry) error {
+	insertValue, err := json.Marshal(&value.value)
 	if err != nil {
 		return err
 	}
@@ -84,20 +114,28 @@ func (cache *Cache) Add(params *AddCacheParams) error {
 		}
 	}
 
-	entry := &cacheEntry{
-		value:         insertValue,
+	value.value = insertValue
+
+	cache.cacheMap.Store(key, value)
+
+	return nil
+}
+
+// Add a value to the cache and the expiry time of the entry will be overridden.
+// The value must be a pointer to a json struct
+func (cache *Cache) Add(params *AddCacheParams) error {
+	value := &cacheEntry{
+		value:         params.Value,
 		expiry:        cache.expiry,
 		insertionTime: time.Now(),
 	}
 
 	// override the expiry for the key provided by the user
 	if params.Expiry > 0 {
-		entry.expiry = params.Expiry
+		value.expiry = params.Expiry
 	}
 
-	cache.cacheMap.Store(params.Key, entry)
-
-	return nil
+	return cache.addInCache(params.Key, value)
 }
 
 // Get looks up a key's value from the cache.

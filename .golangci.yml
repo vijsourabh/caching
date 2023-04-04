@@ -78,18 +78,55 @@ linters-settings:
   # path to a file containing a list of functions to exclude from checking
   # see https://github.com/kisielk/errcheck#excluding-functions for details
   #    exclude: /path/to/file.txt
+
   govet:
     # report about shadowed variables
-    check-shadowing: false
+    check-shadowing: true
 
     # settings per analyzer
-  #    settings:
-  #      printf: # analyzer name, run `go tool vet help` to see all analyzers
-  #        funcs: # run `go tool vet help printf` to see available settings for `printf` analyzer
-  #          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
-  #          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
-  #          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
-  #          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
+    settings:
+
+      shadow:
+        # Whether to be strict about shadowing;
+        strict: true
+
+    enable:
+      - asmdecl
+      - assign
+      - atomic
+      - atomicalign
+      - bools
+      - buildtag
+      - cgocall
+      - composites
+      - copylocks
+      - deepequalerrors
+      - errorsas
+      - findcall
+      - framepointer
+      - httpresponse
+      - ifaceassert
+      - loopclosure
+      - lostcancel
+      - nilfunc
+      - nilness
+      - printf
+      - reflectvaluecompare
+      - shadow
+      - shift
+      - sigchanyzer
+      - sortslice
+      - stdmethods
+      - stringintconv
+      - structtag
+      - testinggoroutine
+      - tests
+      - unmarshal
+      - unreachable
+      - unsafeptr
+      - unusedresult
+      - unusedwrite
+
   golint:
   # minimal confidence for issues, default is 0.8
   #    min-confidence: 0.8
@@ -187,41 +224,55 @@ linters-settings:
 linters:
   # to try out individual linters: golangci-lint run -E gocyclo,gosimple
   enable:
-    - staticcheck
-    - gofumpt
-    - nilerr
-    - nilnil
-    - nonamedreturns
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - typecheck
-    - unused
+    - asasalint
+    - bidichk
     - bodyclose
     - depguard
-    - dogsled            # checks for too many blank identifiers.  don't care
-    - dupl
-    # - funlen              # checks function length.  don't care
-    # - gochecknoglobals    # too common
+    - dogsled
+    - decorder
+    - depguard
+    - dupword
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errorlint
+    - execinquery
+    - exportloopref
+    - ginkgolinter
     - gochecknoinits
     - goconst
     - gocritic
-    # - gocyclo             # checks cyclomatic complexity.  don't care
-    # - godox               # checks for TODO comments.  not standardized
-    - gofmt               # checks code is formatted, handled by make prep
-    - goimports           # checks import order.  We're not using goimports
-    - revive
+    - gofmt
+    - gofumpt
+    - goimports
     - gosec
-    # - lll                 # checks line length.  not enforced
+    - gosimple
+    - govet
+    - grouper
+    - loggercheck
+    - ineffassign
     - misspell
     - nakedret
-    - prealloc            # slice optimizations, but promotes too much premature optimization
-    - exportloopref
+    - nilerr
+    - nilnil
+    - nonamedreturns
+    - nosprintfhostport
+    - prealloc
+    - reassign
+    - revive
+    - staticcheck
     - stylecheck
+    - tenv
+    - testableexamples
+    - typecheck
     - unconvert
-    - unparam            # too many false positives
-    - whitespace         # not enforced
+    - unparam
+    - unused
+    - unconvert
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+
   disable-all: true
 #  presets:
 #    - bugs

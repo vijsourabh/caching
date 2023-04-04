@@ -13,8 +13,8 @@ type testStruct struct {
 }
 
 var (
-	testCacheExpiry        = 5
-	testCacheCleanInterval = 5
+	testCacheExpiry        = 500
+	testCacheCleanInterval = 500
 	testCacheKey           = "key"
 	testCacheValue         = &testStruct{
 		Value: "value",
@@ -285,7 +285,9 @@ func TestService_Cache(test *testing.T) {
 		require.NoError(test, err)
 		require.Equal(test, testCacheValue.Value, expectedValue.Value)
 
-		cache.UpdateExpiry(time.Second * time.Duration(cleanInterval))
+		cache.UpdateTime(&UpdateCacheTimeParams{
+			Expiry: time.Second * time.Duration(cleanInterval),
+		})
 
 		getCachedValue, found = cache.Get(testCacheKey)
 		require.True(test, found)
@@ -327,7 +329,9 @@ func TestService_Cache(test *testing.T) {
 		require.NoError(test, err)
 		require.Equal(test, testCacheValue.Value, expectedValue.Value)
 
-		cache.UpdateExpiry(time.Second * time.Duration(cleanInterval))
+		cache.UpdateTime(&UpdateCacheTimeParams{
+			Expiry: time.Second * time.Duration(cleanInterval),
+		})
 
 		time.Sleep(time.Second * time.Duration(1))
 
@@ -407,7 +411,9 @@ func TestService_Cache(test *testing.T) {
 		require.NoError(test, err)
 		require.Equal(test, testCacheValue.Value, expectedValue.Value)
 
-		cache.UpdateExpiry(time.Second * time.Duration(expiry))
+		cache.UpdateTime(&UpdateCacheTimeParams{
+			Expiry: time.Second * time.Duration(expiry),
+		})
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
@@ -484,5 +490,65 @@ func TestService_Cache(test *testing.T) {
 		getCachedValue, found = cache.Get(testCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
+	})
+
+	test.Run("exception when updating an unknown key", func(test *testing.T) {
+		cache := NewCache(&CreateCacheParams{
+			Expiry:            time.Second * time.Duration(testCacheExpiry),
+			CleanInterval:     time.Second * time.Duration(testCacheCleanInterval),
+			IsCacheObfuscated: true,
+		})
+
+		err := cache.Update(&UpdateCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		require.Error(test, err)
+
+		getCachedValue, found := cache.Get(testCacheKey)
+		require.False(test, found)
+		require.Nil(test, getCachedValue)
+	})
+
+	test.Run("update the value for a key", func(test *testing.T) {
+		cache := NewCache(&CreateCacheParams{
+			Expiry:            time.Second * time.Duration(testCacheExpiry),
+			CleanInterval:     time.Second * time.Duration(testCacheCleanInterval),
+			IsCacheObfuscated: true,
+		})
+
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		defer cache.Remove(testCacheKey)
+
+		getCachedValue, found := cache.Get(testCacheKey)
+		require.True(test, found)
+
+		var expectedValue testStruct
+		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
+		require.NoError(test, err)
+		require.Equal(test, testCacheValue.Value, expectedValue.Value)
+
+		testUpdatedCacheValue := &testStruct{
+			Value: "updatedValue",
+		}
+		err = cache.Update(&UpdateCacheParams{
+			Key:   testCacheKey,
+			Value: testUpdatedCacheValue,
+		})
+		require.NoError(test, err)
+
+		getUpdatedCacheValue, found := cache.Get(testCacheKey)
+		require.True(test, found)
+
+		var expectedUpdatedValue testStruct
+		err = json.Unmarshal(getUpdatedCacheValue.Value, &expectedUpdatedValue)
+		require.NoError(test, err)
+		require.Equal(test, testUpdatedCacheValue.Value, expectedUpdatedValue.Value)
+		require.Equal(test, getCachedValue.InsertionTime, getUpdatedCacheValue.InsertionTime)
 	})
 }
