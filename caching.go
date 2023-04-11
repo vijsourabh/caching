@@ -13,6 +13,7 @@ type (
 		expiry        time.Duration
 		cleanInterval time.Duration
 		obfuscator    *Obfuscator
+		lock          sync.RWMutex
 	}
 
 	cacheEntry struct {
@@ -198,4 +199,20 @@ func (cache *Cache) clean() {
 			return false
 		})
 	}
+}
+
+func (cache *Cache) RLock() {
+	cache.lock.RLock()
+}
+
+func (cache *Cache) RUnlock() {
+	cache.lock.RUnlock()
+}
+
+func (cache *Cache) Lock() {
+	cache.lock.Lock()
+}
+
+func (cache *Cache) Unlock() {
+	cache.lock.Unlock()
 }
