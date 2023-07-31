@@ -83,6 +83,22 @@ func (cache *Cache) UpdateTime(params *UpdateCacheTimeParams) {
 	cache.cleanInterval = params.CleanInterval
 }
 
+// GetAllCacheInfo  fetch the all cache info
+func (cache *Cache) GetAllCacheInfo() map[interface{}]*GetCacheResponse {
+	res := make(map[interface{}]*GetCacheResponse)
+	cache.cacheMap.Range(func(key, value interface{}) bool {
+		insertedVal, found := cache.Get(key)
+		if found {
+			res[key] = insertedVal
+		}
+		return true
+	})
+	if len(res) > 0 {
+		return res
+	}
+	return nil
+}
+
 // Update updates the value for the cache
 func (cache *Cache) Update(params *UpdateCacheParams) error {
 	value, found := cache.cacheMap.Load(params.Key)

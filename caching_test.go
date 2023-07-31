@@ -45,6 +45,67 @@ func TestService_Cache(test *testing.T) {
 		require.Equal(test, testCacheValue.Value, expectedValue.Value)
 	})
 
+	test.Run("get all cache info from the cache", func(test *testing.T) {
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(testCacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+
+		var err error
+		cacheKeyValue := make(map[string]string)
+		cacheKeyValue["key1"] = "val1"
+		cacheKeyValue["key2"] = "val2"
+		cacheKeyValue["key3"] = "val3"
+		cacheKeyValue["key4"] = "val4"
+		for key, val := range cacheKeyValue {
+			err = cache.Add(&AddCacheParams{
+				Key:   key,
+				Value: val,
+			})
+		}
+		require.NoError(test, err)
+
+		cachedInfo := cache.GetAllCacheInfo()
+		require.Len(test, cachedInfo, len(cacheKeyValue))
+
+		for key, value := range cachedInfo {
+			cacheValue, found := cacheKeyValue[key.(string)]
+			require.True(test, found)
+
+			var expectedValue string
+			err = json.Unmarshal(value.Value, &expectedValue)
+			require.NoError(test, err)
+
+			require.Equal(test, cacheValue, expectedValue)
+		}
+	})
+
+	test.Run("fetch all cache after expiring the cache", func(test *testing.T) {
+		cacheExpiry := 5
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(cacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+
+		var err error
+		cacheKeyValue := make(map[string]string)
+		cacheKeyValue["key1"] = "val1"
+		cacheKeyValue["key2"] = "val2"
+		cacheKeyValue["key3"] = "val3"
+		cacheKeyValue["key4"] = "val4"
+		for key, val := range cacheKeyValue {
+			err = cache.Add(&AddCacheParams{
+				Key:   key,
+				Value: val,
+			})
+			require.NoError(test, err)
+		}
+		time.Sleep(time.Second * time.Duration(cacheExpiry))
+
+		cachedInfo := cache.GetAllCacheInfo()
+		require.Nil(test, cachedInfo)
+	})
+
 	test.Run("get entry from the obfuscated cache", func(test *testing.T) {
 		cache := NewCache(&CreateCacheParams{
 			Expiry:            time.Second * time.Duration(testCacheExpiry),
