@@ -151,16 +151,6 @@ linters-settings:
     min-len: 3
     # minimal occurrences count to trigger, 3 by default
     min-occurrences: 3
-  depguard:
-    list-type: blacklist
-    include-go-root: false
-    packages:
-      - github.com/magiconair/properties/assert
-      - gopkg.in/go-playground/assert.v1
-      - github.com/pborman/uuid #replace with github.com/google/uuid
-    inTests:
-      - github.com/davecgh/go-spew/spew
-      - github.com/stretchr/testify
   misspell:
     # Correct spellings using locale preferences for US or UK.
     # Default is to use a neutral variety of English.
@@ -227,10 +217,8 @@ linters:
     - asasalint
     - bidichk
     - bodyclose
-    - depguard
     - dogsled
     - decorder
-    - depguard
     - dupword
     - durationcheck
     - errcheck
