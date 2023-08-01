@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gemalto/flume/flumetest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,19 +23,21 @@ var (
 )
 
 func TestService_Cache(test *testing.T) {
+	defer flumetest.Start(test)
+
 	test.Run("get entry from the cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(testCacheExpiry),
 			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
 		})
-
 		err := cache.Add(&AddCacheParams{
 			Key:   testCacheKey,
 			Value: testCacheValue,
 		})
 		require.NoError(test, err)
-
-		defer cache.Remove(testCacheKey)
 
 		getCachedValue, found := cache.Get(testCacheKey)
 		require.True(test, found)
@@ -46,12 +49,14 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("get all cache info from the cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		var err error
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(testCacheExpiry),
 			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
 		})
-
-		var err error
 		cacheKeyValue := make(map[string]string)
 		cacheKeyValue["key1"] = "val1"
 		cacheKeyValue["key2"] = "val2"
@@ -81,6 +86,9 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("fetch all cache after expiring the cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cacheExpiry := 5
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(cacheExpiry),
@@ -89,10 +97,10 @@ func TestService_Cache(test *testing.T) {
 
 		var err error
 		cacheKeyValue := make(map[string]string)
-		cacheKeyValue["key1"] = "val1"
-		cacheKeyValue["key2"] = "val2"
-		cacheKeyValue["key3"] = "val3"
-		cacheKeyValue["key4"] = "val4"
+		cacheKeyValue["key1"] = "val11"
+		cacheKeyValue["key2"] = "val12"
+		cacheKeyValue["key3"] = "val13"
+		cacheKeyValue["key4"] = "val14"
 		for key, val := range cacheKeyValue {
 			err = cache.Add(&AddCacheParams{
 				Key:   key,
@@ -106,20 +114,73 @@ func TestService_Cache(test *testing.T) {
 		require.Nil(test, cachedInfo)
 	})
 
+	test.Run("fetch cache info after expiring some keys from the cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cacheExpiry := 5
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(cacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+
+		var err error
+		cacheKeyValue := make(map[string]string)
+		cacheKeyValue["key1"] = "val21"
+		cacheKeyValue["key2"] = "val22"
+		cacheKeyValue["key3"] = "val23"
+		cacheKeyValue["key4"] = "val24"
+		for key, val := range cacheKeyValue {
+			err = cache.Add(&AddCacheParams{
+				Key:   key,
+				Value: val,
+			})
+			require.NoError(test, err)
+		}
+
+		time.Sleep(time.Second * time.Duration(cacheExpiry))
+
+		cacheKeyValue2 := make(map[string]string)
+		cacheKeyValue2["key5"] = "val25"
+		cacheKeyValue2["key6"] = "val26"
+
+		for key, val := range cacheKeyValue2 {
+			err = cache.Add(&AddCacheParams{
+				Key:   key,
+				Value: val,
+			})
+			require.NoError(test, err)
+		}
+
+		cachedInfo := cache.GetAllCacheInfo()
+		require.Len(test, cachedInfo, len(cacheKeyValue2))
+
+		for key, value := range cachedInfo {
+			cacheValue, found := cacheKeyValue2[key.(string)]
+			require.True(test, found)
+
+			var expectedValue string
+			err = json.Unmarshal(value.Value, &expectedValue)
+			require.NoError(test, err)
+
+			require.Equal(test, cacheValue, expectedValue)
+		}
+	})
+
 	test.Run("get entry from the obfuscated cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cache := NewCache(&CreateCacheParams{
 			Expiry:            time.Second * time.Duration(testCacheExpiry),
 			CleanInterval:     time.Second * time.Duration(testCacheCleanInterval),
 			IsCacheObfuscated: true,
 		})
-
 		err := cache.Add(&AddCacheParams{
 			Key:   testCacheKey,
 			Value: testCacheValue,
 		})
 		require.NoError(test, err)
-
-		defer cache.Remove(testCacheKey)
 
 		getCachedValue, found := cache.Get(testCacheKey)
 		require.True(test, found)
@@ -131,6 +192,9 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("not able to get entry from cache after removal", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(testCacheExpiry),
 			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
@@ -158,8 +222,10 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("not able to get expired entry", func(test *testing.T) {
-		expiryTime := 1
+		defer flumetest.Start(test)
+		test.Parallel()
 
+		expiryTime := 1
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(expiryTime),
 			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
@@ -187,6 +253,9 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("get invalid entry from cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(testCacheExpiry),
 			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
@@ -198,6 +267,9 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("adding same key in cache multiple times with different value", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(testCacheExpiry),
 			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
@@ -235,8 +307,10 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("fetch the value after cleaning of cache", func(test *testing.T) {
-		cleanInterval := 1
+		defer flumetest.Start(test)
+		test.Parallel()
 
+		cleanInterval := 1
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(testCacheExpiry),
 			CleanInterval: time.Second * time.Duration(cleanInterval),
@@ -267,9 +341,11 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("unable to fetch the expired value after cleaning of cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cleanInterval := 1
 		expiry := 2
-
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(expiry),
 			CleanInterval: time.Second * time.Duration(cleanInterval),
@@ -306,9 +382,11 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("the entry shouldn't get expired even if expiry of the cache is decreased", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cleanInterval := 1
 		expiry := 10
-
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(expiry),
 			CleanInterval: time.Second * time.Duration(cleanInterval),
@@ -349,7 +427,6 @@ func TestService_Cache(test *testing.T) {
 		cache.UpdateTime(&UpdateCacheTimeParams{
 			Expiry: time.Second * time.Duration(cleanInterval),
 		})
-
 		getCachedValue, found = cache.Get(testCacheKey)
 		require.True(test, found)
 
@@ -359,9 +436,11 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("the entry will get expired even if expiry of the cache is increased", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cleanInterval := 3
 		expiry := 2
-
 		cache := NewCache(&CreateCacheParams{
 			Expiry:        time.Second * time.Duration(expiry),
 			CleanInterval: time.Second * time.Duration(cleanInterval),
@@ -393,7 +472,6 @@ func TestService_Cache(test *testing.T) {
 		cache.UpdateTime(&UpdateCacheTimeParams{
 			Expiry: time.Second * time.Duration(cleanInterval),
 		})
-
 		time.Sleep(time.Second * time.Duration(1))
 
 		getCachedValue, found = cache.Get(testCacheKey)
@@ -402,8 +480,10 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("entry not get expired after cleaning if cache expiry is not set", func(test *testing.T) {
-		cleanInterval := 1
+		defer flumetest.Start(test)
+		test.Parallel()
 
+		cleanInterval := 1
 		cache := NewCache(&CreateCacheParams{
 			CleanInterval: time.Second * time.Duration(cleanInterval),
 		})
@@ -442,9 +522,11 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("entry will get expired after cleaning if cache expiry is added later", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cleanInterval := 1
 		expiry := 1
-
 		cache := NewCache(&CreateCacheParams{
 			CleanInterval: time.Second * time.Duration(cleanInterval),
 		})
@@ -515,9 +597,11 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("expire entry after overriding the value of cache expiry", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cleanInterval := 2
 		expiry := 2
-
 		cache := NewCache(&CreateCacheParams{
 			CleanInterval: time.Second * time.Duration(cleanInterval),
 		})
@@ -554,6 +638,9 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("exception when updating an unknown key", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cache := NewCache(&CreateCacheParams{
 			Expiry:            time.Second * time.Duration(testCacheExpiry),
 			CleanInterval:     time.Second * time.Duration(testCacheCleanInterval),
@@ -572,6 +659,9 @@ func TestService_Cache(test *testing.T) {
 	})
 
 	test.Run("update the value for a key", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
 		cache := NewCache(&CreateCacheParams{
 			Expiry:            time.Second * time.Duration(testCacheExpiry),
 			CleanInterval:     time.Second * time.Duration(testCacheCleanInterval),
@@ -583,8 +673,6 @@ func TestService_Cache(test *testing.T) {
 			Value: testCacheValue,
 		})
 		require.NoError(test, err)
-
-		defer cache.Remove(testCacheKey)
 
 		getCachedValue, found := cache.Get(testCacheKey)
 		require.True(test, found)
