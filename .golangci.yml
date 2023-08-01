@@ -239,8 +239,10 @@ linters:
     - grouper
     - loggercheck
     - ineffassign
+    - mirror
     - misspell
     - nakedret
+    - nestif
     - nilerr
     - nilnil
     - nonamedreturns

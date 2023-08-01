@@ -91,11 +91,14 @@ func (cache *Cache) GetAllCacheInfo() map[interface{}]*GetCacheResponse {
 		if found {
 			res[key] = insertedVal
 		}
+
 		return true
 	})
+
 	if len(res) > 0 {
 		return res
 	}
+
 	return nil
 }
 
