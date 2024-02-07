@@ -1,6 +1,6 @@
 module github.com/vijsourabh/caching
 
-go 1.18
+go 1.21
 
 require (
 	github.com/gemalto/flume v0.13.1
@@ -19,8 +19,8 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.18.1 // indirect
-	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/tools v0.11.1 // indirect
+	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/tools v0.17.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
