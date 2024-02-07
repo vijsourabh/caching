@@ -45,8 +45,7 @@ type (
 	}
 
 	GetCacheResponse struct {
-		Value         []byte
-		InsertionTime time.Time
+		Value []byte
 	}
 )
 
@@ -87,7 +86,7 @@ func (cache *Cache) UpdateTime(params *UpdateCacheTimeParams) {
 func (cache *Cache) GetAllCacheInfo() map[interface{}]*GetCacheResponse {
 	res := make(map[interface{}]*GetCacheResponse)
 	cache.cacheMap.Range(func(key, value interface{}) bool {
-		insertedVal, found := cache.Get(key)
+		insertedVal, found := cache.get(key)
 		if found {
 			res[key] = insertedVal
 		}
@@ -158,14 +157,13 @@ func (cache *Cache) Add(params *AddCacheParams) error {
 	return cache.addInCache(params.Key, value)
 }
 
-// Get looks up a key's value from the cache.
-func (cache *Cache) Get(key interface{}) (*GetCacheResponse, bool) {
-	value, found := cache.cacheMap.Load(key)
+func (cache *Cache) get(key interface{}) (*GetCacheResponse, bool) {
+	valueFromCache, found := cache.cacheMap.Load(key)
 	if !found {
 		return nil, false
 	}
 
-	entry, ok := value.(*cacheEntry)
+	entry, ok := valueFromCache.(*cacheEntry)
 	if !ok {
 		cache.Remove(key)
 		return nil, false
@@ -175,7 +173,6 @@ func (cache *Cache) Get(key interface{}) (*GetCacheResponse, bool) {
 		insertedValue := entry.value.([]byte)
 		var err error
 
-		// deobfuscate the entry if cache is obfuscated
 		if cache.obfuscator != nil {
 			insertedValue, err = cache.obfuscator.Deobfuscate(insertedValue)
 			if err != nil {
@@ -185,8 +182,7 @@ func (cache *Cache) Get(key interface{}) (*GetCacheResponse, bool) {
 		}
 
 		return &GetCacheResponse{
-			Value:         insertedValue,
-			InsertionTime: entry.insertionTime,
+			Value: insertedValue,
 		}, true
 	}
 
@@ -194,6 +190,19 @@ func (cache *Cache) Get(key interface{}) (*GetCacheResponse, bool) {
 	cache.Remove(key)
 
 	return nil, false
+}
+
+func (cache *Cache) Get(key interface{}, value interface{}) error {
+	valueFromCache, found := cache.get(key)
+	if !found {
+		return errors.New("key not found in the cache")
+	}
+
+	if err := json.Unmarshal(valueFromCache.Value, value); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Remove the provided key from the cache.

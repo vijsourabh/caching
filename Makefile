@@ -1,6 +1,6 @@
 GOLANGCI_LINT_VERSION ?=
 
-prep: vendor tools fmt lint vet test cover
+prep: vendor tools fmt lint vet cover
 
 builddir: clean
 	mkdir -p -m 0777 build
@@ -21,9 +21,11 @@ test:
 	go test ./...
 
 cover: builddir
-	go test -v -covermode=count -coverprofile=build/coverage.out -json ./...
+	go test -timeout 40m -v -covermode=count -coverprofile=build/coverage.out -json ./...
+
+	# code coverage using gocover
 	go tool cover -html=build/coverage.out -o build/coverage.html
-	# go2xunit -input build/test.out -output build/test.xml
+	go tool cover -func build/coverage.out
 
 update:
 	go get -u ./...

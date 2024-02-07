@@ -39,7 +39,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -182,7 +182,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -206,7 +206,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -216,7 +216,7 @@ func TestService_Cache(test *testing.T) {
 
 		cache.Remove(testCacheKey)
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
 	})
@@ -237,7 +237,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -247,7 +247,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(expiryTime))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
 	})
@@ -260,8 +260,7 @@ func TestService_Cache(test *testing.T) {
 			Expiry:        time.Second * time.Duration(testCacheExpiry),
 			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
 		})
-
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
 	})
@@ -281,7 +280,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -298,7 +297,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -322,7 +321,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -332,7 +331,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -357,7 +356,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -367,7 +366,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -376,7 +375,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval+1))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
 	})
@@ -398,7 +397,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -408,7 +407,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -417,7 +416,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval+1))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -427,7 +426,7 @@ func TestService_Cache(test *testing.T) {
 		cache.UpdateTime(&UpdateCacheTimeParams{
 			Expiry: time.Second * time.Duration(cleanInterval),
 		})
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -452,7 +451,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -462,7 +461,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(expiry-1))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -474,7 +473,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		time.Sleep(time.Second * time.Duration(1))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
 	})
@@ -494,7 +493,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -504,7 +503,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -513,7 +512,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -537,7 +536,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -547,7 +546,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -560,7 +559,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -575,7 +574,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found = cache.Get(newCacheKey)
+		getCachedValue, found = cache.get(newCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -584,11 +583,11 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval+1))
 
-		getCachedValue, found = cache.Get(newCacheKey)
+		getCachedValue, found = cache.get(newCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -613,7 +612,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -623,7 +622,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval-1))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.True(test, found)
 
 		err = json.Unmarshal(getCachedValue.Value, &expectedValue)
@@ -632,7 +631,7 @@ func TestService_Cache(test *testing.T) {
 
 		time.Sleep(time.Second * time.Duration(cleanInterval))
 
-		getCachedValue, found = cache.Get(testCacheKey)
+		getCachedValue, found = cache.get(testCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
 	})
@@ -653,7 +652,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.Error(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.False(test, found)
 		require.Nil(test, getCachedValue)
 	})
@@ -674,7 +673,7 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getCachedValue, found := cache.Get(testCacheKey)
+		getCachedValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedValue testStruct
@@ -691,13 +690,54 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		getUpdatedCacheValue, found := cache.Get(testCacheKey)
+		getUpdatedCacheValue, found := cache.get(testCacheKey)
 		require.True(test, found)
 
 		var expectedUpdatedValue testStruct
 		err = json.Unmarshal(getUpdatedCacheValue.Value, &expectedUpdatedValue)
 		require.NoError(test, err)
 		require.Equal(test, testUpdatedCacheValue.Value, expectedUpdatedValue.Value)
-		require.Equal(test, getCachedValue.InsertionTime, getUpdatedCacheValue.InsertionTime)
+	})
+
+	test.Run("Get string entry from the cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(testCacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+		value := "aa"
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: value,
+		})
+		require.NoError(test, err)
+
+		var getValue string
+		err = cache.Get(testCacheKey, &getValue)
+		require.NoError(test, err)
+		require.Equal(test, value, getValue)
+	})
+
+	test.Run("Get int entry from the cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(testCacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+		value := 50
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: value,
+		})
+		require.NoError(test, err)
+
+		var getValue int
+		err = cache.Get(testCacheKey, &getValue)
+		require.NoError(test, err)
+		require.Equal(test, value, getValue)
 	})
 }
