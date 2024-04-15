@@ -45,7 +45,7 @@ type (
 	}
 
 	GetCacheResponse struct {
-		Value []byte
+		Value interface{}
 	}
 )
 
@@ -86,7 +86,7 @@ func (cache *Cache) UpdateTime(params *UpdateCacheTimeParams) {
 func (cache *Cache) GetAllCacheInfo() map[interface{}]*GetCacheResponse {
 	res := make(map[interface{}]*GetCacheResponse)
 	cache.cacheMap.Range(func(key, value interface{}) bool {
-		insertedVal, found := cache.get(key)
+		insertedVal, found := cache.get(key, value)
 		if found {
 			res[key] = insertedVal
 		}
@@ -122,18 +122,16 @@ func (cache *Cache) Update(params *UpdateCacheParams) error {
 // addInCache adds the value in the cache for the provided key
 // It also obfuscates the value if cache is obfuscated
 func (cache *Cache) addInCache(key interface{}, value *cacheEntry) error {
-	insertValue, err := json.Marshal(&value.value)
-	if err != nil {
-		return err
-	}
-
 	if cache.obfuscator != nil {
-		if insertValue, err = cache.obfuscator.Obfuscate(insertValue); err != nil {
+		insertValue, err := json.Marshal(&value.value)
+		if err != nil {
+			return err
+		}
+
+		if value.value, err = cache.obfuscator.Obfuscate(insertValue); err != nil {
 			return err
 		}
 	}
-
-	value.value = insertValue
 
 	cache.cacheMap.Store(key, value)
 
@@ -157,7 +155,8 @@ func (cache *Cache) Add(params *AddCacheParams) error {
 	return cache.addInCache(params.Key, value)
 }
 
-func (cache *Cache) get(key interface{}) (*GetCacheResponse, bool) {
+// nolint
+func (cache *Cache) get(key interface{}, value interface{}) (*GetCacheResponse, bool) {
 	valueFromCache, found := cache.cacheMap.Load(key)
 	if !found {
 		return nil, false
@@ -170,19 +169,29 @@ func (cache *Cache) get(key interface{}) (*GetCacheResponse, bool) {
 	}
 
 	if entry.expiry <= defaultExpiry || time.Since(entry.insertionTime) <= entry.expiry {
-		insertedValue := entry.value.([]byte)
 		var err error
 
 		if cache.obfuscator != nil {
+			insertedValue := entry.value.([]byte)
 			insertedValue, err = cache.obfuscator.Deobfuscate(insertedValue)
 			if err != nil {
 				cache.Remove(key)
 				return nil, false
 			}
+
+			if value != nil {
+				if err = json.Unmarshal(insertedValue, value); err != nil {
+					return nil, false
+				}
+			}
+
+			return &GetCacheResponse{
+				Value: insertedValue,
+			}, true
 		}
 
 		return &GetCacheResponse{
-			Value: insertedValue,
+			Value: entry.value,
 		}, true
 	}
 
@@ -193,16 +202,20 @@ func (cache *Cache) get(key interface{}) (*GetCacheResponse, bool) {
 }
 
 func (cache *Cache) Get(key interface{}, value interface{}) error {
-	valueFromCache, found := cache.get(key)
-	if !found {
+	if _, found := cache.get(key, value); !found {
 		return errors.New("key not found in the cache")
 	}
 
-	if err := json.Unmarshal(valueFromCache.Value, value); err != nil {
-		return err
+	return nil
+}
+
+func (cache *Cache) GetValue(key interface{}) (interface{}, error) {
+	cachedValue, found := cache.get(key, nil)
+	if !found {
+		return nil, errors.New("key not found in the cache")
 	}
 
-	return nil
+	return cachedValue.Value, nil
 }
 
 // Remove the provided key from the cache.
