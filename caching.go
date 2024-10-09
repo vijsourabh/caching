@@ -70,7 +70,6 @@ func NewCache(params *CreateCacheParams) *Cache {
 	}
 
 	cache.cacheCtx.ctx, cache.cacheCtx.cancelFunc = context.WithCancel(context.Background())
-	afterFuncDone := make(chan bool)
 
 	// override the expiry provided by the user
 	if params.Expiry > 0 {
@@ -81,12 +80,8 @@ func NewCache(params *CreateCacheParams) *Cache {
 		cache.obfuscator = NewObfuscator()
 	}
 
-	time.AfterFunc(cache.cleanInterval, func() {
-		afterFuncDone <- true
-	})
-
 	// call goroutine to clean cache
-	go cache.clean(afterFuncDone)
+	go cache.clean()
 
 	return cache
 }
@@ -240,16 +235,18 @@ func (cache *Cache) Remove(key interface{}) {
 
 func (cache *Cache) Clean() error {
 	cache.cacheCtx.cancelFunc()
+	cache.cacheMap = sync.Map{}
+	cache.obfuscator = nil
 	return nil
 }
 
 // clean removes the expired entries from the cache after a given interval
-func (cache *Cache) clean(afterFuncDone chan bool) {
+func (cache *Cache) clean() {
 	for {
 		select {
 		case <-cache.ctx.Done():
 			return
-		case <-afterFuncDone:
+		case <-time.After(cache.cleanInterval):
 			cache.cacheMap.Range(func(key, value interface{}) bool {
 				entry, ok := value.(*cacheEntry)
 
