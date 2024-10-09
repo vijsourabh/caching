@@ -1,6 +1,7 @@
 package caching
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -14,6 +15,13 @@ type (
 		cleanInterval time.Duration
 		obfuscator    *Obfuscator
 		lock          sync.RWMutex
+		cacheCtx
+	}
+
+	// cacheCtx stores ctx and cancelFunc to stop the routines
+	cacheCtx struct {
+		ctx        context.Context
+		cancelFunc context.CancelFunc
 	}
 
 	cacheEntry struct {
@@ -61,6 +69,9 @@ func NewCache(params *CreateCacheParams) *Cache {
 		expiry:        defaultExpiry,
 	}
 
+	cache.cacheCtx.ctx, cache.cacheCtx.cancelFunc = context.WithCancel(context.Background())
+	afterFuncDone := make(chan bool)
+
 	// override the expiry provided by the user
 	if params.Expiry > 0 {
 		cache.expiry = params.Expiry
@@ -70,8 +81,12 @@ func NewCache(params *CreateCacheParams) *Cache {
 		cache.obfuscator = NewObfuscator()
 	}
 
+	time.AfterFunc(cache.cleanInterval, func() {
+		afterFuncDone <- true
+	})
+
 	// call goroutine to clean cache
-	go cache.clean()
+	go cache.clean(afterFuncDone)
 
 	return cache
 }
@@ -223,22 +238,33 @@ func (cache *Cache) Remove(key interface{}) {
 	cache.cacheMap.Delete(key)
 }
 
+func (cache *Cache) Clean() error {
+	cache.cacheCtx.cancelFunc()
+	return nil
+}
+
 // clean removes the expired entries from the cache after a given interval
-func (cache *Cache) clean() {
-	// infinite loop
+func (cache *Cache) clean(afterFuncDone chan bool) {
+	// timer := time.NewTicker(cache.cleanInterval)
+	// defer timer.Stop()
+
 	for {
-		time.Sleep(cache.cleanInterval)
+		select {
+		case <-cache.ctx.Done():
+			return
+		case <-afterFuncDone:
+			cache.cacheMap.Range(func(key, value interface{}) bool {
+				entry, ok := value.(*cacheEntry)
 
-		cache.cacheMap.Range(func(key, value interface{}) bool {
-			entry, ok := value.(*cacheEntry)
+				if ok && entry.expiry != defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
+					cache.Remove(key)
+					return true
+				}
 
-			if ok && entry.expiry != defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
-				cache.Remove(key)
-				return true
-			}
-
-			return false
-		})
+				return false
+			})
+			// timer.Reset(cache.cleanInterval)
+		}
 	}
 }
 
