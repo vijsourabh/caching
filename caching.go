@@ -245,9 +245,6 @@ func (cache *Cache) Clean() error {
 
 // clean removes the expired entries from the cache after a given interval
 func (cache *Cache) clean(afterFuncDone chan bool) {
-	// timer := time.NewTicker(cache.cleanInterval)
-	// defer timer.Stop()
-
 	for {
 		select {
 		case <-cache.ctx.Done():
@@ -263,7 +260,6 @@ func (cache *Cache) clean(afterFuncDone chan bool) {
 
 				return false
 			})
-			// timer.Reset(cache.cleanInterval)
 		}
 	}
 }
