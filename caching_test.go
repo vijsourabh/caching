@@ -713,4 +713,31 @@ func TestService_Cache(test *testing.T) {
 		require.NoError(test, err)
 		require.Equal(test, value, cachedValue.(int))
 	})
+
+	test.Run("Cache should be clean after Clean", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(testCacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		cachedValue, err := cache.GetValue(testCacheKey)
+		require.NoError(test, err)
+		require.Equal(test, testCacheValue, cachedValue)
+
+		err = cache.Clean()
+		require.NoError(test, err)
+
+		cachedValue, err = cache.GetValue(testCacheKey)
+		require.Error(test, err, "key not found in the cache")
+		require.Nil(test, cachedValue)
+	})
 }

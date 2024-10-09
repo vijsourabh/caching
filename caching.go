@@ -1,6 +1,7 @@
 package caching
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -14,6 +15,13 @@ type (
 		cleanInterval time.Duration
 		obfuscator    *Obfuscator
 		lock          sync.RWMutex
+		cacheCtx
+	}
+
+	// cacheCtx stores ctx and cancelFunc to stop the routines
+	cacheCtx struct {
+		ctx        context.Context
+		cancelFunc context.CancelFunc
 	}
 
 	cacheEntry struct {
@@ -60,6 +68,8 @@ func NewCache(params *CreateCacheParams) *Cache {
 		cleanInterval: params.CleanInterval,
 		expiry:        defaultExpiry,
 	}
+
+	cache.cacheCtx.ctx, cache.cacheCtx.cancelFunc = context.WithCancel(context.Background())
 
 	// override the expiry provided by the user
 	if params.Expiry > 0 {
@@ -223,22 +233,31 @@ func (cache *Cache) Remove(key interface{}) {
 	cache.cacheMap.Delete(key)
 }
 
+func (cache *Cache) Clean() error {
+	cache.cacheCtx.cancelFunc()
+	cache.cacheMap = sync.Map{}
+	cache.obfuscator = nil
+	return nil
+}
+
 // clean removes the expired entries from the cache after a given interval
 func (cache *Cache) clean() {
-	// infinite loop
 	for {
-		time.Sleep(cache.cleanInterval)
+		select {
+		case <-cache.ctx.Done():
+			return
+		case <-time.After(cache.cleanInterval):
+			cache.cacheMap.Range(func(key, value interface{}) bool {
+				entry, ok := value.(*cacheEntry)
 
-		cache.cacheMap.Range(func(key, value interface{}) bool {
-			entry, ok := value.(*cacheEntry)
+				if ok && entry.expiry != defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
+					cache.Remove(key)
+					return true
+				}
 
-			if ok && entry.expiry != defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
-				cache.Remove(key)
-				return true
-			}
-
-			return false
-		})
+				return false
+			})
+		}
 	}
 }
 
