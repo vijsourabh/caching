@@ -1,6 +1,6 @@
 GOLANGCI_LINT_VERSION ?=
 
-prep: vendor tools fmt lint vet cover
+prep: vendor tools fmt lint-fix lint vet cover
 
 builddir: clean
 	mkdir -p -m 0777 build
@@ -10,6 +10,9 @@ vet:
 
 lint:
 	golangci-lint run --timeout 5m
+
+lint-fix:
+	golangci-lint run --fix ./...
 
 clean:
 	rm -rf build/*

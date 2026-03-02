@@ -104,7 +104,8 @@ func TestService_Cache(test *testing.T) {
 		time.Sleep(time.Second * time.Duration(cacheExpiry))
 
 		cachedInfo := cache.GetAllCacheInfo()
-		require.Nil(test, cachedInfo)
+		// GetAllCacheInfo returns an empty map (not nil) when no live entries remain.
+		require.Empty(test, cachedInfo)
 	})
 
 	test.Run("fetch cache info after expiring some keys from the cache", func(test *testing.T) {

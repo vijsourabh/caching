@@ -1,8 +1,11 @@
+version: "2"
+
 # This file contains all available configuration options
 # with their default values.
 
 # options for analysis running
 run:
+
   # default concurrency is a available CPU number
   #  concurrency: 4
 
@@ -22,7 +25,7 @@ run:
   # which dirs to skip: they won't be analyzed;
   # can use regexp here: generated.*, regexp is applied on full path;
   # default value is empty list, but next dirs are always skipped independently
-  # from this option's value:
+  # of this option's value:
   #   	vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
   #  skip-dirs:
   #    - src/external_libs
@@ -46,295 +49,267 @@ run:
   # the dependency descriptions in go.mod.
   modules-download-mode: vendor
 
-
-# output configuration options
-output:
-  # colored-line-number|line-number|json|tab|checkstyle|code-climate, default is "colored-line-number"
-  format: colored-line-number
-
-  # print lines of code with issue, default is true
-  print-issued-lines: true
-
-  # print linter name in the end of issue text, default is true
-  print-linter-name: true
-
-
-# all available settings of specific linters
-linters-settings:
-  errcheck:
-  # report about not checking of errors in type assetions: `a := b.(MyStruct)`;
-  # default is false: such cases aren't reported by default.
-  #    check-type-assertions: false
-
-  # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`;
-  # default is false: such cases aren't reported by default.
-  #    check-blank: false
-
-  # [deprecated] comma-separated list of pairs of the form pkg:regex
-  # the regex is used to ignore names within pkg. (default "fmt:.*").
-  # see https://github.com/kisielk/errcheck#the-deprecated-method for details
-  #    ignore: fmt:.*,io/ioutil:^Read.*
-
-  # path to a file containing a list of functions to exclude from checking
-  # see https://github.com/kisielk/errcheck#excluding-functions for details
-  #    exclude: /path/to/file.txt
-
-  govet:
-    # report about shadowed variables
-    check-shadowing: true
-
-    # settings per analyzer
-    settings:
-
-      shadow:
-        # Whether to be strict about shadowing;
-        strict: true
-
-    enable:
-      - asmdecl
-      - assign
-      - atomic
-      - atomicalign
-      - bools
-      - buildtag
-      - cgocall
-      - composites
-      - copylocks
-      - deepequalerrors
-      - errorsas
-      - findcall
-      - framepointer
-      - httpresponse
-      - ifaceassert
-      - loopclosure
-      - lostcancel
-      - nilfunc
-      - nilness
-      - printf
-      - reflectvaluecompare
-      - shadow
-      - shift
-      - sigchanyzer
-      - sortslice
-      - stdmethods
-      - stringintconv
-      - structtag
-      - testinggoroutine
-      - tests
-      - unmarshal
-      - unreachable
-      - unsafeptr
-      - unusedresult
-      - unusedwrite
-
-  golint:
-  # minimal confidence for issues, default is 0.8
-  #    min-confidence: 0.8
-  gofmt:
-  # simplify code: gofmt with `-s` option, true by default
-  #    simplify: true
-  goimports:
-  # put imports beginning with prefix after 3rd-party packages;
-  # it's a comma-separated list of prefixes
-  #    local-prefixes: github.com/org/project
-  gocyclo:
-    # minimal code complexity to report, 30 by default (but we recommend 10-20)
-    min-complexity: 10
-  maligned:
-    # print struct with more effective memory layout or not, false by default
-    suggest-new: true
-  dupl:
-    # tokens count to trigger issue, 150 by default
-    threshold: 150
-  goconst:
-    # minimal length of string constant, 3 by default
-    min-len: 3
-    # minimal occurrences count to trigger, 3 by default
-    min-occurrences: 3
-  misspell:
-    # Correct spellings using locale preferences for US or UK.
-    # Default is to use a neutral variety of English.
-    # Setting locale to US will correct the British spelling of 'colour' to 'color'.
-    locale: US
-  #    ignore-words:
-  #      - someword
-  lll:
-  # max line length, lines longer will be reported. Default is 120.
-  # '\t' is counted as 1 character by default, and can be changed with the tab-width option
-  #    line-length: 120
-  # tab width in spaces. Default to 1.
-  #    tab-width: 1
-  unused:
-    # treat code as a program (not a library) and report unused exported identifiers; default is false.
-    # XXX: if you enable this setting, unused will report a lot of false-positives in text editors:
-    # if it's called for subdir of a project it can't find funcs usages. All text editor integrations
-    # with golangci-lint call it on a directory with the changed file.
-    check-exported: false
-  unparam:
-    # Inspect exported functions, default is false. Set to true if no external program/library imports your code.
-    # XXX: if you enable this setting, unparam will report a lot of false-positives in text editors:
-    # if it's called for subdir of a project it can't find external interfaces. All text editor integrations
-    # with golangci-lint call it on a directory with the changed file.
-    check-exported: false
-  nakedret:
-  # make an issue if func has more lines of code than this setting and it has naked returns; default is 30
-  #    max-func-lines: 30
-  prealloc:
-    # XXX: we don't recommend using this linter before doing performance profiling.
-    # For most programs usage of prealloc will be a premature optimization.
-
-    # Report preallocation suggestions only on simple loops that have no returns/breaks/continues/gotos in them.
-    # True by default.
-    simple: true
-    range-loops: true # Report preallocation suggestions on range loops, true by default
-    for-loops: false # Report preallocation suggestions on for loops, false by default
-  gocritic:
-  # Which checks should be enabled; can't be combined with 'disabled-checks';
-  # See https://go-critic.github.io/overview#checks-overview
-  # To check which checks are enabled run `GL_DEBUG=gocritic golangci-lint run`
-  # By default list of stable checks is used.
-  #    enabled-checks:
-  #      - rangeValCopy
-
-  # Which checks should be disabled; can't be combined with 'enabled-checks'; default is empty
-  #    disabled-checks:
-  #      - regexpMust
-
-  # Enable multiple checks by tags, run `GL_DEBUG=gocritic golangci-lint` run to see all tags and checks.
-  # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
-#    enabled-tags:
-#      - performance
-
-#    settings: # settings passed to gocritic
-#      captLocal: # must be valid enabled check name
-#        paramsOnly: true
-#      rangeValCopy:
-#        sizeThreshold: 32
-
 linters:
   # to try out individual linters: golangci-lint run -E gocyclo,gosimple
   enable:
+    - arangolint
     - asasalint
+    - asciicheck
     - bidichk
     - bodyclose
-    - dogsled
+    - canonicalheader
+    # - containedctx
+    # - contextcheck
+    - copyloopvar
+    # - cyclop
     - decorder
+    - depguard
+    - dogsled
+    # - dupl
     - dupword
     - durationcheck
+    # - embeddedstructfieldcheck
+    # - err113
     - errcheck
     - errchkjson
+    - errname
     - errorlint
-    - execinquery
-    - exportloopref
+    # - exhaustive
+    # - exhaustruct
+    - exptostd
+    # - fatcontext
+    - forbidigo
+    # - forcetypeassert
+    - funcorder
+    # - funlen
     - ginkgolinter
+    - gocheckcompilerdirectives
+    # - gochecknoglobals
     - gochecknoinits
+    - gochecksumtype
+    # - gocognit
     - goconst
     - gocritic
-    - gofmt
-    - gofumpt
-    - goimports
+    # - gocyclo
+    # - godoclint
+    # - godot
+    # - godox
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
     - gosec
-    - gosimple
+    - gosmopolitan
     - govet
     - grouper
-    - loggercheck
+    - iface
+    - importas
+    - inamedparam
     - ineffassign
+    - interfacebloat
+    - intrange
+    - iotamixing
+    # - lll
+    - loggercheck
+    - maintidx
+    - makezero
     - mirror
     - misspell
+    #- mnd
+    - modernize
+    # - musttag
     - nakedret
     - nestif
     - nilerr
+    - nilnesserr
     - nilnil
-    - nonamedreturns
+    - nlreturn
+    - noctx
+    # - noinlineerr
+    - nolintlint
+    # - nonamedreturns
     - nosprintfhostport
+    # - paralleltest
+    - perfsprint
     - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
     - reassign
-    - revive
+    - recvcheck
+    # - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
     - staticcheck
-    - stylecheck
-    - tenv
+    # - tagalign
+    # - tagliatelle
     - testableexamples
-    - typecheck
+    - testifylint
+    # - testpackage
+    # - thelper
+    # - tparallel
     - unconvert
     - unparam
+    - unqueryvet
     - unused
-    - unconvert
     - usestdlibvars
+    - usetesting
+    # - varnamelen
     - wastedassign
     - whitespace
+    # - wrapcheck
+    - wsl_v5
+    - zerologlint
 
-  disable-all: true
-#  presets:
-#    - bugs
-#    - unused
-#  fast: false
+  disable:
+    - staticcheck
 
+  settings:
+    govet:
+      enable:
+        - appends
+        - asmdecl
+        - assign
+        - atomic
+        - atomicalign
+        - bools
+        - buildtag
+        - cgocall
+        - composites
+        - copylocks
+        - deepequalerrors
+        - defers
+        - directive
+        - errorsas
+        # - fieldalignment
+        - findcall
+        - framepointer
+        - httpresponse
+        - ifaceassert
+        - loopclosure
+        - lostcancel
+        - nilfunc
+        - nilness
+        - printf
+        - reflectvaluecompare
+        - shift
+        - sigchanyzer
+        - slog
+        - sortslice
+        - stdmethods
+        - stdversion
+        - stringintconv
+        - structtag
+        - shadow
+        - testinggoroutine
+        - tests
+        - timeformat
+        - unmarshal
+        - unreachable
+        - unsafeptr
+        - unusedresult
+        - unusedwrite
+        - waitgroup
 
-issues:
-  # List of regexps of issue texts to exclude, empty list by default.
-  # But independently from this option we use default exclude patterns,
-  # it can be disabled by `exclude-use-default: false`. To list all
-  # excluded by default patterns execute `golangci-lint run --help`
-  #  exclude:
-  #    - abcdef
+    copyloopvar:
+      # Check all assigning the loop variable to another variable.
+      # Default: false
+      check-alias: true
 
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-rules:
-    # Exclude some linters from running on tests files.
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-        - exportloopref
-        - gochecknoinits
-        - gochecknoglobals
-    - path: cmd
-      linters:
-        # init() functions are pretty common in main packages
-        - gochecknoinits
-        - gochecknoglobals
+    depguard:
+      rules:
+        all:
+          files:
+            - $all
+          deny:
+            - pkg: github.com/magiconair/properties/assert
+              desc: Use testify/assert package instead
+            - pkg: gopkg.in/go-playground/assert.v1
+            - pkg: github.com/pborman/uuid
+              desc: replace with github.com/google/uuid
+        main:
+          files:
+            - '!$test'
+          deny:
+            - pkg: github.com/davecgh/go-spew/spew
+              desc: spew is usually only used in tests
+            - pkg: github.com/stretchr/testify
+              desc: testify is usually only used in tests
 
-    # Exclude known linters from partially hard-vendored code,
-    # which is impossible to exclude via "nolint" comments.
-    #    - path: internal/hmac/
-    #      text: "weak cryptographic primitive"
-    #      linters:
-    #        - gosec
+    gocyclo:
+      min-complexity: 10
 
-    # Exclude some staticcheck messages
-    - linters:
-        - staticcheck
-      text: "SA1019:"
+    dupl:
+      threshold: 100
 
-    # Exclude lll issues for long lines with go:generate
-    - linters:
-        - lll
-      source: "^//go:generate "
+    interfacebloat:
+      max: 15
 
-  # Independently from option `exclude` we use default exclude patterns,
-  # it can be disabled by this option. To list all
-  # excluded by default patterns execute `golangci-lint run --help`.
-  # Default value for this option is true.
-  #  exclude-use-default: false
+    misspell:
+      locale: US
 
-  # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
-  #  max-issues-per-linter: 0
+    prealloc:
+      for-loops: true
+      range-loops: true
+      simple: true
 
-  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
-  #  max-same-issues: 0
+    unparam:
+      # Inspect exported functions, default is false. Set to true if no external program/library imports your code.
+      # XXX: if you enable this setting, unparam will report a lot of false-positives in text editors:
+      # if it's called for subdir of a project it can't find external interfaces. All text editor integrations
+      # with golangci-lint call it on a directory with the changed file.
+      check-exported: false
 
-  # Show only new issues: if there are unstaged changes or untracked files,
-  # only those changes are analyzed, else only changes in HEAD~ are analyzed.
-  # It's a super-useful option for integration of golangci-lint into existing
-  # large codebase. It's not practical to fix all existing issues at the moment
-  # of integration: much better don't allow issues in new code.
-  # Default is false.
-  new: false
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: true
+      enable:
+        - assign
+        - branch
+        - decl
+        - defer
+        - expr
+        - for
+        - go
+        - if
+        - inc-dec
+        - label
+        - range
+        - return
+        - select
+        - send
+        - switch
+        - type-switch
+        - append
+        - assign-exclusive
+        - assign-expr
+        - err
+        - leading-whitespace
+        - trailing-whitespace
 
-  # Show only new issues created after git revision `REV`
-  #  new-from-rev: REV
+  exclusions:
+    rules:
+      - linters:
+          - cyclop
+          - errname
+          - gocognit
+          - goconst
+          - gocyclo
+          - gosec
+          - gosmopolitan
+          - funlen
+          - maintidx
+          - nolintlint
+          - prealloc
+          - wsl_v5
+        path: _test\.go
 
-  # Show only new issues created in git patch with set file path.
-#  new-from-patch: path/to/patch/file
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    # - golines

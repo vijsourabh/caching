@@ -15,6 +15,7 @@ type (
 		cleanInterval time.Duration
 		obfuscator    *Obfuscator
 		lock          sync.RWMutex
+		intervalCh    chan time.Duration // signals cleanInterval changes from UpdateTime
 		cacheCtx
 	}
 
@@ -61,13 +62,15 @@ const (
 	defaultExpiry = -1
 )
 
-// NewCache creates a cache Instance and triggers a goroutine to Clean the cache on the basis of provided cleanInterval
+// NewCache creates a cache Instance and triggers a goroutine to Clean the cache on the basis of provided cleanInterval.
 func NewCache(params *CreateCacheParams) *Cache {
 	cache := &Cache{
 		cacheMap:      sync.Map{},
 		cleanInterval: params.CleanInterval,
 		expiry:        defaultExpiry,
 	}
+
+	cache.intervalCh = make(chan time.Duration, 1)
 
 	cache.cacheCtx.ctx, cache.cacheCtx.cancelFunc = context.WithCancel(context.Background())
 
@@ -86,13 +89,29 @@ func NewCache(params *CreateCacheParams) *Cache {
 	return cache
 }
 
-// UpdateTime updates the expiry time of the cache.
+// UpdateTime updates the global expiry and, when CleanInterval > 0, the
+// cleanInterval of the background cleaner goroutine.
+// Callers performing concurrent Add/Get alongside UpdateTime must hold the
+// write Lock() before calling this method to avoid a data race on expiry.
 func (cache *Cache) UpdateTime(params *UpdateCacheTimeParams) {
 	cache.expiry = params.Expiry
-	cache.cleanInterval = params.CleanInterval
+
+	if params.CleanInterval > 0 {
+		cache.cleanInterval = params.CleanInterval
+		// Notify the clean() goroutine immediately so it resets the ticker
+		// without waiting for the current tick to expire. Non-blocking send:
+		// if the channel already holds a pending value the goroutine will
+		// read the latest cleanInterval from cache.cleanInterval directly.
+		select {
+		case cache.intervalCh <- params.CleanInterval:
+		default:
+		}
+	}
 }
 
-// GetAllCacheInfo  fetch the all cache info
+// GetAllCacheInfo returns all non-expired cache entries.
+// Returns an empty (non-nil) map when the cache holds no live entries,
+// so callers can range over the result without a nil-check.
 func (cache *Cache) GetAllCacheInfo() map[any]*GetCacheResponse {
 	res := make(map[any]*GetCacheResponse)
 	cache.cacheMap.Range(func(key, value any) bool {
@@ -104,11 +123,7 @@ func (cache *Cache) GetAllCacheInfo() map[any]*GetCacheResponse {
 		return true
 	})
 
-	if len(res) > 0 {
-		return res
-	}
-
-	return nil
+	return res
 }
 
 // Update updates the value for the cache
@@ -130,8 +145,10 @@ func (cache *Cache) Update(params *UpdateCacheParams) error {
 	return cache.addInCache(params.Key, entry)
 }
 
-// Add a value to the cache and the expiry time of the entry will be overridden.
-// The value must be a pointer to a json struct
+// Add stores a value in the cache. If the key already exists it is overwritten.
+// Per-key Expiry overrides the cache-level expiry when > 0.
+// Callers that concurrently call UpdateTime must hold RLock() before calling
+// Add to avoid a data race on the cache-level expiry field.
 func (cache *Cache) Add(params *AddCacheParams) error {
 	value := &cacheEntry{
 		value:         params.Value,
@@ -160,6 +177,12 @@ func (cache *Cache) Remove(key any) {
 	cache.cacheMap.Delete(key)
 }
 
+// Clean cancels the background cleaner goroutine, wipes all cached entries,
+// and removes the obfuscator.
+//
+// IMPORTANT: Clean is a terminal operation. The cache MUST NOT be used after
+// calling Clean; the background cleaner goroutine will not restart. Create a
+// fresh instance with NewCache if further caching is required.
 func (cache *Cache) Clean() {
 	cache.cacheCtx.cancelFunc()
 	cache.cacheMap.Clear()
@@ -202,24 +225,57 @@ func (cache *Cache) addInCache(key any, value *cacheEntry) error {
 	return nil
 }
 
-// clean removes the expired entries from the cache after a given interval
+// clean removes the expired entries from the cache after a given interval.
+//
+// Uses time.NewTicker instead of time.After to avoid allocating a new timer on
+// every iteration. UpdateTime signals interval changes via intervalCh so the
+// ticker is reset immediately — no waiting for the current tick to expire.
+//
+// If no cleanInterval is configured at construction, the goroutine blocks on
+// intervalCh until UpdateTime provides one, keeping the goroutine alive without
+// risking a time.NewTicker(0) panic.
 func (cache *Cache) clean() {
+	interval := cache.cleanInterval
+
+	// No interval configured yet — block until UpdateTime provides one or the
+	// cache is shut down.
+	if interval <= 0 {
+		select {
+		case <-cache.ctx.Done():
+			return
+		case interval = <-cache.intervalCh:
+		}
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-cache.ctx.Done():
 			return
 
-		case <-time.After(cache.cleanInterval):
+		// UpdateTime sent a new interval — reset the ticker immediately so
+		// the change takes effect on the very next cycle.
+		case newInterval := <-cache.intervalCh:
+			if newInterval > 0 && newInterval != interval {
+				interval = newInterval
+				ticker.Reset(interval)
+			}
+
+		case <-ticker.C:
 			cache.cacheMap.Range(func(key, value any) bool {
 				entry, ok := value.(*cacheEntry)
 
-				if ok && entry.expiry != defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
+				// Use > 0 (not != defaultExpiry) so a zero-duration expiry is
+				// treated as "no expiry" rather than "immediately expired".
+				if ok && entry.expiry > 0 && time.Since(entry.insertionTime) > entry.expiry {
 					cache.Remove(key)
-
-					return true
 				}
 
-				return false
+				// Always return true to continue iterating over all entries.
+				// Returning false would stop Range after the first non-expired key.
+				return true
 			})
 		}
 	}
@@ -238,7 +294,10 @@ func (cache *Cache) get(key any, value any) (*GetCacheResponse, bool) {
 		return nil, false
 	}
 
-	if entry.expiry > defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
+	// Use > 0 (not > defaultExpiry) so a zero-duration expiry is treated as
+	// "no expiry" rather than "immediately expired" (defaultExpiry is -1, so
+	// > defaultExpiry would also be true for expiry == 0).
+	if entry.expiry > 0 && time.Since(entry.insertionTime) > entry.expiry {
 		cache.Remove(key)
 
 		return nil, false
