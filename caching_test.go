@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gemalto/flume/flumetest"
+	"github.com/ThalesGroup/flume/v2/flumetest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -177,7 +177,7 @@ func TestService_Cache(test *testing.T) {
 		var expectedValue testStruct
 		err = json.Unmarshal(getCachedValue.Value.([]byte), &expectedValue)
 		require.NoError(test, err)
-		require.Equal(test, testCacheValue.Value, expectedValue.Value)
+		require.Equal(test, expectedValue.Value, testCacheValue.Value)
 	})
 
 	test.Run("not able to get entry from cache after removal", func(test *testing.T) {
@@ -610,7 +610,7 @@ func TestService_Cache(test *testing.T) {
 		var expectedValue testStruct
 		err = json.Unmarshal(getCachedValue.Value.([]byte), &expectedValue)
 		require.NoError(test, err)
-		require.Equal(test, testCacheValue.Value, expectedValue.Value)
+		require.Equal(test, expectedValue.Value, testCacheValue.Value)
 
 		testUpdatedCacheValue := &testStruct{
 			Value: "updatedValue",
@@ -627,7 +627,7 @@ func TestService_Cache(test *testing.T) {
 		var expectedUpdatedValue testStruct
 		err = json.Unmarshal(getUpdatedCacheValue.Value.([]byte), &expectedUpdatedValue)
 		require.NoError(test, err)
-		require.Equal(test, testUpdatedCacheValue.Value, expectedUpdatedValue.Value)
+		require.Equal(test, expectedUpdatedValue.Value, testUpdatedCacheValue.Value)
 	})
 
 	test.Run("Get string entry from the cache", func(test *testing.T) {
@@ -674,7 +674,7 @@ func TestService_Cache(test *testing.T) {
 		require.Equal(test, value, getValue)
 	})
 
-	test.Run("GetValue of string entry from the cache", func(test *testing.T) {
+	test.Run("Get string entry from non-obfuscated cache", func(test *testing.T) {
 		defer flumetest.Start(test)
 		test.Parallel()
 
@@ -689,12 +689,13 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		cachedValue, err := cache.GetValue(testCacheKey)
+		var cachedValue any
+		err = cache.Get(testCacheKey, &cachedValue)
 		require.NoError(test, err)
 		require.Equal(test, value, cachedValue.(string))
 	})
 
-	test.Run("Getvalue of int entry from the cache", func(test *testing.T) {
+	test.Run("Get int entry from non-obfuscated cache", func(test *testing.T) {
 		defer flumetest.Start(test)
 		test.Parallel()
 
@@ -709,7 +710,8 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		cachedValue, err := cache.GetValue(testCacheKey)
+		var cachedValue any
+		err = cache.Get(testCacheKey, &cachedValue)
 		require.NoError(test, err)
 		require.Equal(test, value, cachedValue.(int))
 	})
@@ -729,14 +731,15 @@ func TestService_Cache(test *testing.T) {
 		})
 		require.NoError(test, err)
 
-		cachedValue, err := cache.GetValue(testCacheKey)
+		var cachedValue any
+		err = cache.Get(testCacheKey, &cachedValue)
 		require.NoError(test, err)
 		require.Equal(test, testCacheValue, cachedValue)
 
-		err = cache.Clean()
-		require.NoError(test, err)
+		cache.Clean()
 
-		cachedValue, err = cache.GetValue(testCacheKey)
+		cachedValue = nil
+		err = cache.Get(testCacheKey, &cachedValue)
 		require.Error(test, err, "key not found in the cache")
 		require.Nil(test, cachedValue)
 	})

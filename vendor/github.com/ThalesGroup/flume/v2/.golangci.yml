@@ -1,0 +1,86 @@
+version: "2"
+linters:
+  default: all
+  disable:
+    - cyclop
+    - depguard
+    - exhaustruct
+    - funlen
+    - gochecknoglobals
+    - gocyclo
+    - godot
+    - godox
+    - intrange
+    - lll
+    - mnd
+    - nlreturn
+    - paralleltest
+    - recvcheck
+    - testpackage
+    - thelper
+    - varnamelen
+    - wsl
+    - noinlineerr
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    govet:
+      disable:
+        - shadow
+    inamedparam:
+      skip-single-param: true
+    ireturn:
+      allow:
+        - anon
+        - empty
+        - stdlib
+        - error
+        - flume\/v2\.Middleware$
+    wrapcheck:
+      ignore-package-globs:
+        - log/slog*
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - forcetypeassert
+          - gochecknoglobals
+          - gochecknoinits
+          - goconst
+          - gosec
+          - scopelint
+          - err113
+          - wrapcheck
+        path: _test\.go
+      - linters:
+          - gochecknoglobals
+          - gochecknoinits
+        path: cmd
+      - linters:
+          - revive
+        text: 'exported:'
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  new: false
+  fix: true
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
