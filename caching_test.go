@@ -744,4 +744,351 @@ func TestService_Cache(test *testing.T) {
 		require.Error(test, err, "key not found in the cache")
 		require.Nil(test, cachedValue)
 	})
+
+	// -----------------------------------------------------------------------
+	// NEW TEST CASES
+	// -----------------------------------------------------------------------
+
+	// 1. NewCache with Expiry == 0 must fall back to defaultExpiry (-1) so
+	//    entries are never expired by the background cleaner.
+	test.Run("NewCache with zero expiry uses defaultExpiry and entries never expire", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		shortClean := 1
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        0, // explicitly zero → must use defaultExpiry = -1
+			CleanInterval: time.Second * time.Duration(shortClean),
+		})
+
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		getCachedValue, found := cache.get(testCacheKey, &testCacheValue)
+		require.True(test, found)
+		require.Equal(test, testCacheValue.Value, getCachedValue.Value.(*testStruct).Value)
+
+		// Wait for several clean cycles — entry must still be present.
+		time.Sleep(time.Second * time.Duration(shortClean*3))
+
+		getCachedValue, found = cache.get(testCacheKey, &testCacheValue)
+		require.True(test, found)
+		require.Equal(test, testCacheValue.Value, getCachedValue.Value.(*testStruct).Value)
+	})
+
+	// 2. UpdateTime with a new CleanInterval must reset the background cleaner
+	//    ticker so the new interval takes effect immediately.
+	test.Run("UpdateTime with CleanInterval resets background cleaner ticker", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		// Start with a very long clean interval so the cleaner won't fire on its own.
+		longClean := 60
+		shortExpiry := 1
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(shortExpiry),
+			CleanInterval: time.Second * time.Duration(longClean),
+		})
+
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		// Entry is live right after insertion.
+		getCachedValue, found := cache.get(testCacheKey, &testCacheValue)
+		require.True(test, found)
+		require.Equal(test, testCacheValue.Value, getCachedValue.Value.(*testStruct).Value)
+
+		// Switch to a short clean interval while also lowering the expiry so
+		// the next fresh entry we add will expire quickly.
+		newClean := 1
+		cache.Lock()
+		cache.UpdateTime(&UpdateCacheTimeParams{
+			Expiry:        time.Second * time.Duration(shortExpiry),
+			CleanInterval: time.Second * time.Duration(newClean),
+		})
+		cache.Unlock()
+
+		// Verify the cache field was updated.
+		require.Equal(test, time.Second*time.Duration(newClean), cache.cleanInterval)
+
+		// Add a fresh entry that will expire after shortExpiry.
+		freshKey := "freshKey"
+		err = cache.Add(&AddCacheParams{
+			Key:   freshKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		// Wait for the new (short) clean interval to fire and remove the expired entry.
+		time.Sleep(time.Second * time.Duration(shortExpiry+newClean+1))
+
+		// Background cleaner should have evicted the fresh entry.
+		getCachedValue, found = cache.get(freshKey, &testCacheValue)
+		require.False(test, found)
+		require.Nil(test, getCachedValue)
+	})
+
+	// 3. When no CleanInterval is set at construction, the clean() goroutine blocks
+	//    on intervalCh.  Supplying one via UpdateTime should start the ticker.
+	test.Run("cache with no initial CleanInterval starts cleaning after UpdateTime provides one", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		expiry := 1
+		// No CleanInterval → clean() goroutine blocks on intervalCh.
+		cache := NewCache(&CreateCacheParams{
+			Expiry: time.Second * time.Duration(expiry),
+		})
+
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		// Entry is live immediately.
+		getCachedValue, found := cache.get(testCacheKey, &testCacheValue)
+		require.True(test, found)
+		require.Equal(test, testCacheValue.Value, getCachedValue.Value.(*testStruct).Value)
+
+		// Wait past expiry — get() itself detects and removes the expired entry.
+		time.Sleep(time.Second * time.Duration(expiry+1))
+
+		getCachedValue, found = cache.get(testCacheKey, &testCacheValue)
+		require.False(test, found)
+		require.Nil(test, getCachedValue)
+
+		// Add a new entry and now supply a CleanInterval via UpdateTime so the
+		// goroutine wakes up and starts ticking.
+		newKey := "newKey"
+		err = cache.Add(&AddCacheParams{
+			Key:   newKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		newClean := 1
+		cache.Lock()
+		cache.UpdateTime(&UpdateCacheTimeParams{
+			Expiry:        time.Second * time.Duration(expiry),
+			CleanInterval: time.Second * time.Duration(newClean),
+		})
+		cache.Unlock()
+
+		// Wait for the goroutine to run one tick and evict the expired entry.
+		time.Sleep(time.Second * time.Duration(expiry+newClean+1))
+
+		getCachedValue, found = cache.get(newKey, &testCacheValue)
+		require.False(test, found)
+		require.Nil(test, getCachedValue)
+	})
+
+	// 4. Clean() must properly shut down the goroutine even when it is still
+	//    blocking on intervalCh (i.e. no CleanInterval was ever configured).
+	test.Run("Clean terminates goroutine when no CleanInterval was set", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		// Goroutine will block on intervalCh; Clean() must cancel the context.
+		cache := NewCache(&CreateCacheParams{
+			Expiry: time.Second * time.Duration(testCacheExpiry),
+			// No CleanInterval.
+		})
+
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		// Clean() should cancel the context, unblocking the goroutine.
+		cache.Clean()
+
+		// All entries must be wiped.
+		getCachedValue, found := cache.get(testCacheKey, &testCacheValue)
+		require.False(test, found)
+		require.Nil(test, getCachedValue)
+	})
+
+	// 5. Update must work on a non-obfuscated cache (existing tests only use obfuscated).
+	test.Run("Update value in non-obfuscated cache", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(testCacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+			// IsCacheObfuscated: false (default)
+		})
+
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		getCachedValue, found := cache.get(testCacheKey, &testCacheValue)
+		require.True(test, found)
+		require.Equal(test, testCacheValue.Value, getCachedValue.Value.(*testStruct).Value)
+
+		updatedValue := &testStruct{Value: "updatedNonObfuscated"}
+		err = cache.Update(&UpdateCacheParams{
+			Key:   testCacheKey,
+			Value: updatedValue,
+		})
+		require.NoError(test, err)
+
+		getCachedValue, found = cache.get(testCacheKey, &testCacheValue)
+		require.True(test, found)
+		require.Equal(test, updatedValue.Value, getCachedValue.Value.(*testStruct).Value)
+	})
+
+	// 6. The public Get method must return an error when the key is not found.
+	test.Run("public Get returns error for missing key", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(testCacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+
+		var dest any
+		err := cache.Get("nonExistentKey", &dest)
+		require.Error(test, err)
+		require.EqualError(test, err, "key not found in the cache")
+		require.Nil(test, dest)
+	})
+
+	// 7. A per-key Expiry that is shorter than the cache-level expiry must
+	//    cause that entry to expire before entries using the cache-level expiry.
+	test.Run("per-key expiry shorter than cache-level expiry expires sooner", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cacheExpiry := 10
+		perKeyExpiry := 1
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(cacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+
+		shortKey := "shortLivedKey"
+		longKey := "longLivedKey"
+
+		// shortKey uses a per-key expiry shorter than the cache-level expiry.
+		err := cache.Add(&AddCacheParams{
+			Key:    shortKey,
+			Value:  testCacheValue,
+			Expiry: time.Second * time.Duration(perKeyExpiry),
+		})
+		require.NoError(test, err)
+
+		// longKey uses the cache-level expiry.
+		err = cache.Add(&AddCacheParams{
+			Key:   longKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		// Both are live immediately.
+		_, found := cache.get(shortKey, &testCacheValue)
+		require.True(test, found)
+		_, found = cache.get(longKey, &testCacheValue)
+		require.True(test, found)
+
+		// After the short per-key expiry, shortKey must be gone but longKey survives.
+		time.Sleep(time.Second * time.Duration(perKeyExpiry+1))
+
+		getCachedValue, found := cache.get(shortKey, &testCacheValue)
+		require.False(test, found)
+		require.Nil(test, getCachedValue)
+
+		getCachedValue, found = cache.get(longKey, &testCacheValue)
+		require.True(test, found)
+		require.Equal(test, testCacheValue.Value, getCachedValue.Value.(*testStruct).Value)
+	})
+
+	// 8. A per-key Expiry that is longer than the cache-level expiry must
+	//    keep that entry alive after entries using the cache-level expiry expire.
+	test.Run("per-key expiry longer than cache-level expiry outlives other entries", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cacheExpiry := 1
+		perKeyExpiry := 5
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(cacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+
+		shortKey := "shortLivedKey"
+		longKey := "longLivedKey"
+
+		// shortKey uses the cache-level (shorter) expiry.
+		err := cache.Add(&AddCacheParams{
+			Key:   shortKey,
+			Value: testCacheValue,
+		})
+		require.NoError(test, err)
+
+		// longKey uses a per-key expiry that exceeds the cache-level expiry.
+		err = cache.Add(&AddCacheParams{
+			Key:    longKey,
+			Value:  testCacheValue,
+			Expiry: time.Second * time.Duration(perKeyExpiry),
+		})
+		require.NoError(test, err)
+
+		// Both live initially.
+		_, found := cache.get(shortKey, &testCacheValue)
+		require.True(test, found)
+		_, found = cache.get(longKey, &testCacheValue)
+		require.True(test, found)
+
+		// After the cache-level expiry, shortKey is gone but longKey (per-key) still lives.
+		time.Sleep(time.Second * time.Duration(cacheExpiry+1))
+
+		getCachedValue, found := cache.get(shortKey, &testCacheValue)
+		require.False(test, found)
+		require.Nil(test, getCachedValue)
+
+		getCachedValue, found = cache.get(longKey, &testCacheValue)
+		require.True(test, found)
+		require.Equal(test, testCacheValue.Value, getCachedValue.Value.(*testStruct).Value)
+	})
+
+	// 9. The four mutex-delegation helpers (Lock/Unlock/RLock/RUnlock) must
+	//    not deadlock and must protect concurrent access correctly.
+	test.Run("Lock RLock Unlock RUnlock helpers delegate to embedded mutex", func(test *testing.T) {
+		defer flumetest.Start(test)
+		test.Parallel()
+
+		cache := NewCache(&CreateCacheParams{
+			Expiry:        time.Second * time.Duration(testCacheExpiry),
+			CleanInterval: time.Second * time.Duration(testCacheCleanInterval),
+		})
+
+		// Write lock: Lock / Unlock must not deadlock.
+		cache.Lock()
+		err := cache.Add(&AddCacheParams{
+			Key:   testCacheKey,
+			Value: testCacheValue,
+		})
+		cache.Unlock()
+		require.NoError(test, err)
+
+		// Read lock: RLock / RUnlock must not deadlock and must allow the read.
+		cache.RLock()
+		getCachedValue, found := cache.get(testCacheKey, &testCacheValue)
+		cache.RUnlock()
+		require.True(test, found)
+		require.Equal(test, testCacheValue.Value, getCachedValue.Value.(*testStruct).Value)
+	})
 }
