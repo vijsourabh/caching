@@ -25,7 +25,7 @@ type (
 	}
 
 	cacheEntry struct {
-		value         interface{}
+		value         any
 		insertionTime time.Time
 		expiry        time.Duration
 	}
@@ -37,14 +37,14 @@ type (
 	}
 
 	AddCacheParams struct {
-		Key    interface{}
-		Value  interface{}
+		Key    any
+		Value  any
 		Expiry time.Duration
 	}
 
 	UpdateCacheParams struct {
-		Key   interface{}
-		Value interface{}
+		Key   any
+		Value any
 	}
 
 	UpdateCacheTimeParams struct {
@@ -53,7 +53,7 @@ type (
 	}
 
 	GetCacheResponse struct {
-		Value interface{}
+		Value any
 	}
 )
 
@@ -93,9 +93,9 @@ func (cache *Cache) UpdateTime(params *UpdateCacheTimeParams) {
 }
 
 // GetAllCacheInfo  fetch the all cache info
-func (cache *Cache) GetAllCacheInfo() map[interface{}]*GetCacheResponse {
-	res := make(map[interface{}]*GetCacheResponse)
-	cache.cacheMap.Range(func(key, value interface{}) bool {
+func (cache *Cache) GetAllCacheInfo() map[any]*GetCacheResponse {
+	res := make(map[any]*GetCacheResponse)
+	cache.cacheMap.Range(func(key, value any) bool {
 		insertedVal, found := cache.get(key, value)
 		if found {
 			res[key] = insertedVal
@@ -121,31 +121,13 @@ func (cache *Cache) Update(params *UpdateCacheParams) error {
 	entry, ok := value.(*cacheEntry)
 	if !ok {
 		cache.Remove(params.Key)
+
 		return errors.New("invalid value found in cache")
 	}
 
 	entry.value = params.Value
 
 	return cache.addInCache(params.Key, entry)
-}
-
-// addInCache adds the value in the cache for the provided key
-// It also obfuscates the value if cache is obfuscated
-func (cache *Cache) addInCache(key interface{}, value *cacheEntry) error {
-	if cache.obfuscator != nil {
-		insertValue, err := json.Marshal(&value.value)
-		if err != nil {
-			return err
-		}
-
-		if value.value, err = cache.obfuscator.Obfuscate(insertValue); err != nil {
-			return err
-		}
-	}
-
-	cache.cacheMap.Store(key, value)
-
-	return nil
 }
 
 // Add a value to the cache and the expiry time of the entry will be overridden.
@@ -165,53 +147,7 @@ func (cache *Cache) Add(params *AddCacheParams) error {
 	return cache.addInCache(params.Key, value)
 }
 
-// nolint
-func (cache *Cache) get(key interface{}, value interface{}) (*GetCacheResponse, bool) {
-	valueFromCache, found := cache.cacheMap.Load(key)
-	if !found {
-		return nil, false
-	}
-
-	entry, ok := valueFromCache.(*cacheEntry)
-	if !ok {
-		cache.Remove(key)
-		return nil, false
-	}
-
-	if entry.expiry <= defaultExpiry || time.Since(entry.insertionTime) <= entry.expiry {
-		var err error
-
-		if cache.obfuscator != nil {
-			insertedValue := entry.value.([]byte)
-			insertedValue, err = cache.obfuscator.Deobfuscate(insertedValue)
-			if err != nil {
-				cache.Remove(key)
-				return nil, false
-			}
-
-			if value != nil {
-				if err = json.Unmarshal(insertedValue, value); err != nil {
-					return nil, false
-				}
-			}
-
-			return &GetCacheResponse{
-				Value: insertedValue,
-			}, true
-		}
-
-		return &GetCacheResponse{
-			Value: entry.value,
-		}, true
-	}
-
-	// since the entry in the cache is expired, so removing it from cache
-	cache.Remove(key)
-
-	return nil, false
-}
-
-func (cache *Cache) Get(key interface{}, value interface{}) error {
+func (cache *Cache) Get(key any, value any) error {
 	if _, found := cache.get(key, value); !found {
 		return errors.New("key not found in the cache")
 	}
@@ -219,46 +155,16 @@ func (cache *Cache) Get(key interface{}, value interface{}) error {
 	return nil
 }
 
-func (cache *Cache) GetValue(key interface{}) (interface{}, error) {
-	cachedValue, found := cache.get(key, nil)
-	if !found {
-		return nil, errors.New("key not found in the cache")
-	}
-
-	return cachedValue.Value, nil
-}
-
 // Remove the provided key from the cache.
-func (cache *Cache) Remove(key interface{}) {
+func (cache *Cache) Remove(key any) {
 	cache.cacheMap.Delete(key)
 }
 
-func (cache *Cache) Clean() error {
+func (cache *Cache) Clean() {
 	cache.cacheCtx.cancelFunc()
-	cache.cacheMap = sync.Map{}
+	cache.cacheMap.Clear()
+
 	cache.obfuscator = nil
-	return nil
-}
-
-// clean removes the expired entries from the cache after a given interval
-func (cache *Cache) clean() {
-	for {
-		select {
-		case <-cache.ctx.Done():
-			return
-		case <-time.After(cache.cleanInterval):
-			cache.cacheMap.Range(func(key, value interface{}) bool {
-				entry, ok := value.(*cacheEntry)
-
-				if ok && entry.expiry != defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
-					cache.Remove(key)
-					return true
-				}
-
-				return false
-			})
-		}
-	}
 }
 
 func (cache *Cache) RLock() {
@@ -275,4 +181,96 @@ func (cache *Cache) Lock() {
 
 func (cache *Cache) Unlock() {
 	cache.lock.Unlock()
+}
+
+// addInCache adds the value in the cache for the provided key
+// It also obfuscates the value if cache is obfuscated
+func (cache *Cache) addInCache(key any, value *cacheEntry) error {
+	if cache.obfuscator != nil {
+		insertValue, err := json.Marshal(&value.value)
+		if err != nil {
+			return err
+		}
+
+		if value.value, err = cache.obfuscator.Obfuscate(insertValue); err != nil {
+			return err
+		}
+	}
+
+	cache.cacheMap.Store(key, value)
+
+	return nil
+}
+
+// clean removes the expired entries from the cache after a given interval
+func (cache *Cache) clean() {
+	for {
+		select {
+		case <-cache.ctx.Done():
+			return
+
+		case <-time.After(cache.cleanInterval):
+			cache.cacheMap.Range(func(key, value any) bool {
+				entry, ok := value.(*cacheEntry)
+
+				if ok && entry.expiry != defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
+					cache.Remove(key)
+
+					return true
+				}
+
+				return false
+			})
+		}
+	}
+}
+
+func (cache *Cache) get(key any, value any) (*GetCacheResponse, bool) {
+	valueFromCache, found := cache.cacheMap.Load(key)
+	if !found {
+		return nil, false
+	}
+
+	entry, ok := valueFromCache.(*cacheEntry)
+	if !ok {
+		cache.Remove(key)
+
+		return nil, false
+	}
+
+	if entry.expiry > defaultExpiry && time.Since(entry.insertionTime) > entry.expiry {
+		cache.Remove(key)
+
+		return nil, false
+	}
+
+	if cache.obfuscator == nil {
+		// Populate *any dest for non-JSON types (e.g. CGo cipher objects).
+		if ptr, ok := value.(*any); ok && ptr != nil {
+			*ptr = entry.value
+		}
+
+		return &GetCacheResponse{
+			Value: entry.value,
+		}, true
+	}
+
+	var err error
+
+	insertedValue := entry.value.([]byte)
+	if insertedValue, err = cache.obfuscator.Deobfuscate(insertedValue); err != nil {
+		cache.Remove(key)
+
+		return nil, false
+	}
+
+	if value != nil {
+		if err = json.Unmarshal(insertedValue, value); err != nil {
+			return nil, false
+		}
+	}
+
+	return &GetCacheResponse{
+		Value: insertedValue,
+	}, true
 }
